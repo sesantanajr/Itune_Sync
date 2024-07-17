@@ -83,8 +83,7 @@ Todos os logs de operações realizadas são salvos no diretório `C:\J365_Intun
 2. **Executar o Script**:
    Abra o PowerShell como Administrador e execute o script `Intune_Sync.ps1`:
    ```sh
-   .\Intune_Sync.ps1
-   powershell -ExecutionPolicy Bypass -File .\Intune_Sync.ps1
+   powershell -ExecutionPolicy Bypass -File .\Intune_Sync.ps1 .\Intune_Sync.ps1
    ```
 
 3. **Seguir as Instruções na Tela**:
