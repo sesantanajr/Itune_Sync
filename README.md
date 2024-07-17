@@ -97,5 +97,5 @@ Todos os logs de operações realizadas são salvos no diretório `C:\J365_Intun
 
 ## Contribuição
 
-Contribuições são bem-vindas! Sinta-se à vontade para abrir uma issue ou enviar um pull request com melhorias, correções de bugs ou novas funcionalidades.
+Contribuições são bem-vindas!
 Faça parte desta Jornada você também - Jornada 365 - https://jornada365.cloud
