@@ -4,6 +4,8 @@
 
 O script "Jornada 365 - Intune Sync" foi desenvolvido para facilitar a sincronização e gerenciamento de dispositivos no Microsoft Intune. Este script automatiza várias tarefas de administração de dispositivos, como sincronização, reparo de dispositivos com problemas de sincronismo e forçar a sincronização de todos os dispositivos. Ele é especialmente útil para administradores de TI que gerenciam um grande número de dispositivos e precisam de uma maneira eficiente e automatizada para garantir que todos os dispositivos estejam atualizados e em conformidade.
 
+https://github.com/sesantanajr/Itune_Sync/blob/main/intune_sync_menu.png
+
 ## Funcionalidades
 
 - **Instalação e Atualização do Módulo Microsoft Graph Intune**: Verifica se o módulo Microsoft Graph Intune está instalado e atualizado. Se não estiver, o módulo é instalado ou atualizado automaticamente.
