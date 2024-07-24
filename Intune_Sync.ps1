@@ -1,35 +1,39 @@
-# Funcao para verificar e instalar/atualizar o modulo Microsoft Graph Intune
-function Install-Update-GraphModule {
-    $moduleName = "Microsoft.Graph.Intune"
-    $module = Get-InstalledModule -Name $moduleName -ErrorAction SilentlyContinue
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 
-    if ($null -eq $module) {
-        Write-Host "Instalando o modulo $moduleName..."
-        Install-Module -Name $moduleName -Scope CurrentUser -Force -AllowClobber
-    } else {
-        $latestModule = Find-Module -Name $moduleName
-        if ($module.Version -lt $latestModule.Version) {
-            Write-Host "Atualizando o modulo $moduleName..."
-            Update-Module -Name $moduleName -Force
+# Instalar/Atualizar modulos necessarios
+function Install-Update-Modules {
+    $modules = @("Microsoft.Graph.Intune", "PSWriteHTML", "WindowsCompatibility")
+    foreach ($module in $modules) {
+        $installed = Get-InstalledModule -Name $module -ErrorAction SilentlyContinue
+        if (-not $installed) {
+            Write-Host "Instalando o modulo $module..."
+            Install-Module -Name $module -Scope CurrentUser -Force -AllowClobber
         } else {
-            Write-Host "O modulo $moduleName ja esta instalado e atualizado."
+            $latest = Find-Module -Name $module
+            if ($installed.Version -lt $latest.Version) {
+                Write-Host "Atualizando o modulo $module..."
+                Update-Module -Name $module -Force
+            } else {
+                Write-Host "O modulo $module ja esta instalado e atualizado."
+            }
         }
     }
 }
 
-# Funcao para conectar ao Microsoft Graph com autenticacao interativa
+# Conectar ao Microsoft Graph com autenticacao interativa
 function Connect-ToGraph {
     Write-Host "Conectando ao Microsoft Graph..."
     Connect-MgGraph -Scopes "DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementManagedDevices.PrivilegedOperations.All"
 }
 
-# Funcao para desconectar do Microsoft Graph
+# Desconectar do Microsoft Graph
 function Disconnect-FromGraph {
     Write-Host "Desconectando do Microsoft Graph..."
     Disconnect-MgGraph
 }
 
-# Funcao para verificar e habilitar o servico dmwappushservice
+# Habilitar servico dmwappushservice
 function Ensure-Dmwappushservice {
     $service = Get-Service -Name dmwappushservice -ErrorAction SilentlyContinue
     if ($service -and $service.Status -ne 'Running') {
@@ -39,17 +43,15 @@ function Ensure-Dmwappushservice {
     }
 }
 
-# Funcao para criar diretorio se nao existir
+# Criar diretorio se nao existir
 function Create-DirectoryIfNotExists {
-    param (
-        [string]$path
-    )
+    param ([string]$path)
     if (-not (Test-Path -Path $path)) {
         New-Item -ItemType Directory -Path $path -Force
     }
 }
 
-# Funcao para gerar log
+# Gerar log
 function Log-Action {
     param (
         [string]$logPath,
@@ -60,12 +62,160 @@ function Log-Action {
     Add-Content -Path $logPath -Value $logEntry
 }
 
-# Funcao para sincronizar dispositivos por sistema operacional
+# Funcoes para gerar relatorios web
+function Generate-HTMLReport {
+    param (
+        [string]$title,
+        [string]$logPath,
+        [string]$errorLogPath
+    )
+
+    # Verificar se os arquivos de log existem
+    if (-not (Test-Path -Path $logPath)) {
+        Write-Host "Arquivo de log nao encontrado: $logPath" -ForegroundColor Red
+        return
+    }
+
+    if (-not (Test-Path -Path $errorLogPath)) {
+        Write-Host "Arquivo de log de erros nao encontrado: $errorLogPath" -ForegroundColor Yellow
+        New-Item -Path $errorLogPath -ItemType File -Force | Out-Null
+    }
+
+    $logContent = Import-Csv -Path $logPath
+    $errorLogContent = Import-Csv -Path $errorLogPath
+
+    $htmlContent = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>$title</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        .logo {
+            display: block;
+            margin: 0 auto;
+            width: 150px;
+            height: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        table, th, td {
+            border: 1px solid #ccc;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .error {
+            color: red;
+        }
+        .chart {
+            width: 80%;
+            margin: auto;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"></script>
+</head>
+<body>
+    <img src="https://jornada365.cloud/wp-content/uploads/2024/03/Logotipo-Jornada-365-Home.png" class="logo" alt="Jornada 365 Logo">
+    <h1>$title</h1>
+    <h2>Log de Sincronizacao</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Mensagem</th>
+                <th>Nome do Dispositivo</th>
+                <th>Email</th>
+                <th>Licenca</th>
+            </tr>
+        </thead>
+        <tbody>
+"@
+
+    foreach ($logEntry in $logContent) {
+        $htmlContent += "<tr><td>$($logEntry.Timestamp)</td><td>$($logEntry.Mensagem)</td><td>$($logEntry.NomeDoDispositivo)</td><td>$($logEntry.Email)</td><td>$($logEntry.Licenca)</td></tr>"
+    }
+
+    $htmlContent += @"
+        </tbody>
+    </table>
+    <h2>Log de Erros</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Mensagem</th>
+            </tr>
+        </thead>
+        <tbody>
+"@
+
+    foreach ($errorEntry in $errorLogContent) {
+        $htmlContent += "<tr><td>$($errorEntry.Timestamp)</td><td class='error'>$($errorEntry.Mensagem)</td></tr>"
+    }
+
+    $htmlContent += @"
+        </tbody>
+    </table>
+    <div class="chart">
+        <canvas id="syncChart"></canvas>
+    </div>
+    <script>
+        var ctx = document.getElementById('syncChart').getContext('2d');
+        var chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Sucesso', 'Erro'],
+                datasets: [{
+                    label: 'Sincronizacoes',
+                    data: [$($logContent.Count), $($errorLogContent.Count)],
+                    backgroundColor: ['#4CAF50', '#F44336']
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }]
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+"@
+
+    $outputPath = "$logDirectory\relatorio_$(Get-Date -Format 'yyyyMMdd_HHmm').html"
+    $htmlContent | Out-File -FilePath $outputPath -Encoding utf8
+    Start-Process $outputPath
+}
+
+# Sincronizar dispositivos por sistema operacional
 function Sync-Devices {
     param (
         [string]$filter,
         [string]$logPath,
-        [string]$errorLogPath
+        [string]$errorLogPath,
+        [string]$deviceType
     )
     try {
         $devices = Get-MgDeviceManagementManagedDevice -Filter $filter -ErrorAction Stop
@@ -73,42 +223,48 @@ function Sync-Devices {
             $message = "Nao existem dispositivos configurados para esta plataforma."
             Write-Host $message -ForegroundColor Yellow
             Log-Action -logPath $logPath -message $message
-            Write-Host "Pressione Enter para voltar ao menu principal..."
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            $statusLabel.Text = $message
             return
         }
         $totalDevices = $devices.Count
         $counter = 0
-
         foreach ($device in $devices) {
             $counter++
             $percentage = [math]::Round(($counter / $totalDevices) * 100)
-            Write-Progress -Activity "Sincronizando dispositivos" -Status "$percentage% completo" -PercentComplete $percentage -CurrentOperation $device.DeviceName
+            $progressBar.Value = $percentage
+            $statusLabel.Text = "Sincronizando dispositivo: $($device.DeviceName) - $percentage%"
             try {
+                Ensure-Dmwappushservice
                 Sync-MgDeviceManagementManagedDevice -ManagedDeviceId $device.Id
-                $logMessage = "Sincronizando dispositivo: $($device.DeviceName) (ID: $($device.Id))"
-                Write-Host $logMessage
-                Log-Action -logPath $logPath -message $logMessage
+                $logMessage = "[$deviceType] Sincronizando dispositivo: $($device.DeviceName) (ID: $($device.Id)), UPN: $($device.UserPrincipalName), Licenca: $($device.OperatingSystem)"
+                $logEntry = [PSCustomObject]@{
+                    Timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+                    Mensagem = "Sincronizacao bem-sucedida"
+                    NomeDoDispositivo = $device.DeviceName
+                    Email = $device.UserPrincipalName
+                    Licenca = $device.OperatingSystem
+                }
+                $logEntry | ConvertTo-Csv -NoTypeInformation | Out-File -Append -FilePath $logPath
             } catch {
                 $errorMessage = "Erro ao sincronizar dispositivo $($device.DeviceName): $_"
-                Write-Host $errorMessage -ForegroundColor Red
-                Log-Action -logPath $errorLogPath -message $errorMessage
+                $errorEntry = [PSCustomObject]@{
+                    Timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+                    Mensagem = $errorMessage
+                }
+                $errorEntry | ConvertTo-Csv -NoTypeInformation | Out-File -Append -FilePath $errorLogPath
             }
-            Start-Sleep -Milliseconds 500 # Pausa para visualizacao gradual
+            Start-Sleep -Milliseconds 500
         }
-        Write-Host "Sincronizacao concluida. O arquivo de log foi salvo em $logPath"
-        Write-Host "Pressione Enter para voltar ao menu principal..."
+        $completionMessage = "Sincronizacao concluida para $deviceType. O arquivo de log foi salvo em $logPath"
+        Log-Action -logPath $logPath -message $completionMessage
     } catch {
         $errorMessage = "Erro ao obter dispositivos: $_"
-        Write-Host $errorMessage -ForegroundColor Red
         Log-Action -logPath $errorLogPath -message $errorMessage
-        Write-Host "Pressione Enter para continuar..."
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        $statusLabel.Text = $errorMessage
     }
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
-# Funcao para sincronizar dispositivos nao conformes e desatualizados
+# Sincronizar dispositivos nao conformes e desatualizados
 function Resync-NoncompliantOrOutdatedDevices {
     param (
         [string]$logPath,
@@ -117,54 +273,55 @@ function Resync-NoncompliantOrOutdatedDevices {
     try {
         $now = Get-Date
         $threshold = $now.AddHours(-12)
-
         $devices = Get-MgDeviceManagementManagedDevice | Where-Object {
             $_.ComplianceState -ne "compliant" -or ($_.LastSyncDateTime -lt $threshold)
         }
-        
         if ($devices.Count -eq 0) {
             $message = "Nenhum dispositivo nao conforme ou desatualizado encontrado para sincronizar."
             Write-Host $message -ForegroundColor Yellow
             Log-Action -logPath $logPath -message $message
-            Write-Host "Pressione Enter para voltar ao menu principal..."
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            $statusLabel.Text = $message
             return
         }
-        
         $totalDevices = $devices.Count
         $counter = 0
-
         foreach ($device in $devices) {
             $counter++
             $percentage = [math]::Round(($counter / $totalDevices) * 100)
-            Write-Progress -Activity "Reparando dispositivos" -Status "$percentage% completo" -PercentComplete $percentage -CurrentOperation $device.DeviceName
+            $progressBar.Value = $percentage
+            $statusLabel.Text = "Reparando dispositivo: $($device.DeviceName) - $percentage%"
             Ensure-Dmwappushservice
             try {
-                # Correção do cmdlet
                 Invoke-MgGraphRequest -Method POST -Uri "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/$($device.Id)/syncDevice"
-                $logMessage = "Reparando e sincronizando dispositivo: $($device.DeviceName) (ID: $($device.Id))"
-                Write-Host $logMessage
-                Log-Action -logPath $logPath -message $logMessage
+                $logMessage = "[Reparar] Sincronizando dispositivo: $($device.DeviceName) (ID: $($device.Id)), UPN: $($device.UserPrincipalName), Licenca: $($device.OperatingSystem)"
+                $logEntry = [PSCustomObject]@{
+                    Timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+                    Mensagem = "Reparo bem-sucedido"
+                    NomeDoDispositivo = $device.DeviceName
+                    Email = $device.UserPrincipalName
+                    Licenca = $device.OperatingSystem
+                }
+                $logEntry | ConvertTo-Csv -NoTypeInformation | Out-File -Append -FilePath $logPath
             } catch {
                 $errorMessage = "Erro ao reparar dispositivo $($device.DeviceName): $_"
-                Write-Host $errorMessage -ForegroundColor Red
-                Log-Action -logPath $errorLogPath -message $errorMessage
+                $errorEntry = [PSCustomObject]@{
+                    Timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+                    Mensagem = $errorMessage
+                }
+                $errorEntry | ConvertTo-Csv -NoTypeInformation | Out-File -Append -FilePath $errorLogPath
             }
-            Start-Sleep -Milliseconds 500 # Pausa para visualizacao gradual
+            Start-Sleep -Milliseconds 500
         }
-        Write-Host "Reparo concluido. O arquivo de log foi salvo em $logPath"
-        Write-Host "Pressione Enter para voltar ao menu principal..."
+        $completionMessage = "Reparo concluido. O arquivo de log foi salvo em $logPath"
+        Log-Action -logPath $logPath -message $completionMessage
     } catch {
         $errorMessage = "Erro ao obter dispositivos: $_"
-        Write-Host $errorMessage -ForegroundColor Red
         Log-Action -logPath $errorLogPath -message $errorMessage
-        Write-Host "Pressione Enter para continuar..."
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        $statusLabel.Text = $errorMessage
     }
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
-# Funcao para forcar sincronizacao de todos os dispositivos
+# Forcar sincronizacao de todos os dispositivos
 function Force-Sync-AllDevices {
     param (
         [string]$logPath,
@@ -176,165 +333,51 @@ function Force-Sync-AllDevices {
             $message = "Nenhum dispositivo encontrado para sincronizar."
             Write-Host $message -ForegroundColor Yellow
             Log-Action -logPath $logPath -message $message
-            Write-Host "Pressione Enter para voltar ao menu principal..."
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            $statusLabel.Text = $message
             return
         }
         $totalDevices = $devices.Count
         $counter = 0
-
         foreach ($device in $devices) {
             $counter++
-            $percentage = [math]::Round(($counter / $totalDevices) * 100)
-            Write-Progress -Activity "Forcando sincronizacao de todos os dispositivos" -Status "$percentage% completo" -PercentComplete $percentage -CurrentOperation $device.DeviceName
+            $percentage = [math]::Round(($counter / $totalDevices) * 100, 2)
+            $progressBar.Value = $percentage
+            $statusLabel.Text = "Forcando sincronizacao do dispositivo: $($device.DeviceName) - $percentage%"
             try {
+                Ensure-Dmwappushservice
                 Sync-MgDeviceManagementManagedDevice -ManagedDeviceId $device.Id
-                $logMessage = "Forcando sincronizacao do dispositivo: $($device.DeviceName) (ID: $($device.Id))"
-                Write-Host $logMessage
-                Log-Action -logPath $logPath -message $logMessage
+                $logMessage = "[Forcar] Sincronizando dispositivo: $($device.DeviceName) (ID: $($device.Id)), UPN: $($device.UserPrincipalName), Licenca: $($device.OperatingSystem)"
+                $logEntry = [PSCustomObject]@{
+                    Timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+                    Mensagem = "Sincronizacao forcada bem-sucedida"
+                    NomeDoDispositivo = $device.DeviceName
+                    Email = $device.UserPrincipalName
+                    Licenca = $device.OperatingSystem
+                }
+                $logEntry | ConvertTo-Csv -NoTypeInformation | Out-File -Append -FilePath $logPath
             } catch {
                 $errorMessage = "Erro ao forcar sincronizacao do dispositivo $($device.DeviceName): $_"
-                Write-Host $errorMessage -ForegroundColor Red
-                Log-Action -logPath $errorLogPath -message $errorMessage
+                $errorEntry = [PSCustomObject]@{
+                    Timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+                    Mensagem = $errorMessage
+                }
+                $errorEntry | ConvertTo-Csv -NoTypeInformation | Out-File -Append -FilePath $errorLogPath
             }
-            Start-Sleep -Milliseconds 500 # Pausa para visualizacao gradual
+            Start-Sleep -Milliseconds 500
         }
-        Write-Host "Forcamento de sincronizacao concluido. O arquivo de log foi salvo em $logPath"
-        Write-Host "Pressione Enter para voltar ao menu principal..."
+        $completionMessage = "Forcamento de sincronizacao concluido. O arquivo de log foi salvo em $logPath"
+        Log-Action -logPath $logPath -message $completionMessage
     } catch {
         $errorMessage = "Erro ao obter dispositivos: $_"
-        Write-Host $errorMessage -ForegroundColor Red
         Log-Action -logPath $errorLogPath -message $errorMessage
-        Write-Host "Pressione Enter para continuar..."
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        $statusLabel.Text = $errorMessage
     }
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
-# Funcao para abrir URLs no navegador padrao
+# Abrir URLs no navegador padrao
 function Open-Url {
-    param (
-        [string]$url
-    )
+    param ([string]$url)
     Start-Process $url
-}
-
-# Funcao para exportar ajuda para arquivo txt
-function Export-Help {
-    param (
-        [string]$helpText
-    )
-    $helpFileName = "C:\J365_Intune\Jornada365_Ajuda.txt"
-    $counter = 1
-    while (Test-Path $helpFileName) {
-        $helpFileName = "C:\J365_Intune\Jornada365_Ajuda_$counter.txt"
-        $counter++
-    }
-    $helpText | Out-File -FilePath $helpFileName
-    Write-Host "Ajuda exportada para o arquivo $helpFileName"
-}
-
-# Funcao de ajuda detalhada
-function Show-Help {
-    Clear-Host
-    $helpText = @"
-============================================
-                  Ajuda
-============================================
-Este script ajuda a gerenciar e sincronizar dispositivos no Intune.
-
-Opcoes disponiveis:
-1. Sincronizar todos os dispositivos Windows (Fisicos):
-   Sincroniza todos os dispositivos com sistema operacional Windows que sao fisicos.
-   Comando utilizado: Sync-Devices -filter "operatingSystem eq 'Windows'" -logPath \$logPath -errorLogPath \$errorLogPath
-
-2. Sincronizar todos os dispositivos Android:
-   Sincroniza todos os dispositivos com sistema operacional Android.
-   Comando utilizado: Sync-Devices -filter "operatingSystem eq 'Android'" -logPath \$logPath -errorLogPath \$errorLogPath
-
-3. Sincronizar todos os dispositivos macOS:
-   Sincroniza todos os dispositivos com sistema operacional macOS.
-   Comando utilizado: Sync-Devices -filter "operatingSystem eq 'macOS'" -logPath \$logPath -errorLogPath \$errorLogPath
-
-4. Sincronizar todos os dispositivos ChromeOS:
-   Sincroniza todos os dispositivos com sistema operacional ChromeOS.
-   Comando utilizado: Sync-Devices -filter "operatingSystem eq 'ChromeOS'" -logPath \$logPath -errorLogPath \$errorLogPath
-
-5. Reparar dispositivos com problemas de sincronismo:
-   Repara e sincroniza dispositivos que nao estao em conformidade ou que nao sincronizaram nas ultimas 12 horas.
-   Comando utilizado: Resync-NoncompliantOrOutdatedDevices -logPath \$logPath -errorLogPath \$errorLogPath
-
-6. Forcar sincronizacao de todos os dispositivos:
-   Forca a sincronizacao de todos os dispositivos, independentemente do estado.
-   Comando utilizado: Force-Sync-AllDevices -logPath \$logPath -errorLogPath \$errorLogPath
-
-7. Abrir Jornada 365:
-   Abre o site Jornada 365 no navegador padrao.
-   Comando utilizado: Open-Url -url "https://jornada365.cloud"
-
-8. Abrir Intune Portal:
-   Abre o portal do Intune no navegador padrao.
-   Comando utilizado: Open-Url -url "https://intune.microsoft.com/"
-
-9. Ajuda:
-   Exibe este menu de ajuda detalhada.
-   Comando utilizado: Show-Help
-
-10. Sair e desconectar:
-   Sai do script e desconecta do Microsoft Graph.
-   Comando utilizado: Disconnect-FromGraph
-
-Os logs de todas as acoes realizadas sao salvos em C:\J365_Intune com data e hora no nome do arquivo.
-============================================
-"@
-    Write-Host $helpText
-    Write-Host "Deseja exportar essa ajuda para um arquivo txt? (S/N)"
-    $response = Read-Host
-    if ($response -eq "S") {
-        Export-Help -helpText $helpText
-    }
-    Write-Host "Pressione Enter para voltar ao menu principal..."
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-}
-
-# Tela de boas-vindas
-function Show-WelcomeScreen {
-    Clear-Host
-    Write-Host "============================================"
-    Write-Host "          Jornada 365 - Intune Sync          "
-    Write-Host "============================================"
-    Write-Host ""
-    Write-Host "Bem-vindo ao script para sincronizar dispositivos Intune."
-    Write-Host "Foi criado um diretorio em C:\J365_Intune para armazenar logs detalhados de todas as operacoes realizadas."
-    Write-Host ""
-    Write-Host "Acesse o site: https://jornada365.cloud"
-    Write-Host "Learn Microsoft: https://learn.microsoft.com/pt-br/mem/intune/"
-    Write-Host ""
-    Write-Host "============================================"
-    Write-Host ""
-    Write-Host "Pressione qualquer tecla para continuar..."
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-}
-
-# Menu de opcoes
-function Show-Menu {
-    Clear-Host
-    Write-Host "============================================"
-    Write-Host "               Menu de Opcoes               "
-    Write-Host "============================================"
-    Write-Host "1. Sincronizar todos os dispositivos Windows (Fisicos)"
-    Write-Host "2. Sincronizar todos os dispositivos Android"
-    Write-Host "3. Sincronizar todos os dispositivos macOS"
-    Write-Host "4. Sincronizar todos os dispositivos ChromeOS"
-    Write-Host "5. Reparar dispositivos com problemas de sincronismo"
-    Write-Host "6. Forcar sincronizacao de todos os dispositivos"
-    Write-Host "7. Abrir Jornada 365"
-    Write-Host "8. Abrir Intune Portal"
-    Write-Host "9. Ajuda"
-    Write-Host "10. Sair e desconectar"
-    Write-Host "============================================"
-    $choice = Read-Host "Digite o numero da sua escolha"
-    return $choice
 }
 
 # Criar diretorio de log se nao existir
@@ -342,67 +385,170 @@ $logDirectory = "C:\J365_Intune"
 Create-DirectoryIfNotExists -path $logDirectory
 
 # Caminho do arquivo de log
-$logPath = "$logDirectory\sync_log_$(Get-Date -Format 'yyyyMMdd_HHmm').txt"
-$errorLogPath = "$logDirectory\error_log_$(Get-Date -Format 'yyyyMMdd_HHmm').txt"
+$logPath = "$logDirectory\sync_log_$(Get-Date -Format 'yyyyMMdd_HHmm').csv"
+$errorLogPath = "$logDirectory\error_log_$(Get-Date -Format 'yyyyMMdd_HHmm').csv"
 
-# Verificar e instalar/atualizar o modulo Microsoft Graph Intune
-Install-Update-GraphModule
+# Verificar e instalar/atualizar os modulos necessarios
+Install-Update-Modules
 
 # Conectar ao Microsoft Graph
 Connect-ToGraph
 
-# Exibir tela de boas-vindas
-Show-WelcomeScreen
+# Criar a janela principal
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Jornada Intune Sync"
+$form.Size = New-Object System.Drawing.Size(800, 600)
+$form.StartPosition = "CenterScreen"
+$form.BackColor = [System.Drawing.Color]::White
+$form.FormBorderStyle = 'FixedDialog'
+$form.MaximizeBox = $false
 
-# Loop principal
-do {
-    $choice = Show-Menu
-    switch ($choice) {
-        1 {
-            Write-Host "Sincronizando todos os dispositivos Windows (Fisicos)..."
-            Sync-Devices -filter "operatingSystem eq 'Windows'" -logPath $logPath -errorLogPath $errorLogPath
-        }
-        2 {
-            Write-Host "Sincronizando todos os dispositivos Android..."
-            Sync-Devices -filter "operatingSystem eq 'Android'" -logPath $logPath -errorLogPath $errorLogPath
-        }
-        3 {
-            Write-Host "Sincronizando todos os dispositivos macOS..."
-            Sync-Devices -filter "operatingSystem eq 'macOS'" -logPath $logPath -errorLogPath $errorLogPath
-        }
-        4 {
-            Write-Host "Sincronizando todos os dispositivos ChromeOS..."
-            Sync-Devices -filter "operatingSystem eq 'ChromeOS'" -logPath $logPath -errorLogPath $errorLogPath
-        }
-        5 {
-            Write-Host "Reparando dispositivos com problemas de sincronismo..."
-            Resync-NoncompliantOrOutdatedDevices -logPath $logPath -errorLogPath $errorLogPath
-        }
-        6 {
-            Write-Host "Forcando sincronizacao de todos os dispositivos..."
-            Force-Sync-AllDevices -logPath $logPath -errorLogPath $errorLogPath
-        }
-        7 {
-            Write-Host "Abrindo Jornada 365..."
-            Open-Url -url "https://jornada365.cloud"
-        }
-        8 {
-            Write-Host "Abrindo Intune Portal..."
-            Open-Url -url "https://intune.microsoft.com/"
-        }
-        9 {
-            Show-Help
-        }
-        10 {
-            Write-Host "Saindo e desconectando..."
-            Disconnect-FromGraph
-            exit
-        }
-        default {
-            Write-Host "Opcao invalida. Tente novamente."
+# Adicionar a logo
+$pictureBox = New-Object System.Windows.Forms.PictureBox
+$pictureBox.ImageLocation = "https://jornada365.cloud/wp-content/uploads/2024/03/Logotipo-Jornada-365-Home.png"
+$pictureBox.Size = New-Object System.Drawing.Size(200, 50)
+$pictureBox.Location = New-Object System.Drawing.Point(10, 10)
+$pictureBox.SizeMode = "Zoom"
+$form.Controls.Add($pictureBox)
+
+# Adicionar titulo
+$titleLabel = New-Object System.Windows.Forms.Label
+$titleLabel.Text = "Jornada Intune Sync"
+$titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 24, [System.Drawing.FontStyle]::Bold)
+$titleLabel.Location = New-Object System.Drawing.Point(220, 10)
+$titleLabel.Size = New-Object System.Drawing.Size(560, 50)
+$titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+$form.Controls.Add($titleLabel)
+
+# Criar a group box
+$groupBox = New-Object System.Windows.Forms.GroupBox
+$groupBox.Text = "Device Sync"
+$groupBox.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+$groupBox.Size = New-Object System.Drawing.Size(760, 300)
+$groupBox.Location = New-Object System.Drawing.Point(10, 80)
+$groupBox.BackColor = [System.Drawing.Color]::White
+$form.Controls.Add($groupBox)
+
+# Adicionar CheckBoxes para as opcoes
+$options = @(
+    "Sincronizar todos os dispositivos Windows (Fisicos)",
+    "Sincronizar todos os dispositivos Android",
+    "Sincronizar todos os dispositivos macOS",
+    "Sincronizar todos os dispositivos ChromeOS",
+    "Reparar dispositivos com problemas de sincronismo",
+    "Forcar sincronizacao de todos os dispositivos",
+    "Abrir Jornada 365",
+    "Abrir Intune Portal"
+)
+
+$y = 30
+$checkBoxes = @()
+
+foreach ($option in $options) {
+    $checkBox = New-Object System.Windows.Forms.CheckBox
+    $checkBox.Text = $option
+    $checkBox.Location = New-Object System.Drawing.Point(10, $y)
+    $checkBox.Font = New-Object System.Drawing.Font("Segoe UI", 12)
+    $checkBox.AutoSize = $true
+    $groupBox.Controls.Add($checkBox)
+    $checkBoxes += $checkBox
+    $y += 30
+}
+
+# Adicionar label para mostrar dispositivos sendo sincronizados
+$statusLabel = New-Object System.Windows.Forms.Label
+$statusLabel.Location = New-Object System.Drawing.Point(170, 400)
+$statusLabel.Size = New-Object System.Drawing.Size(460, 30)
+$statusLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+$statusLabel.BackColor = [System.Drawing.Color]::White
+$statusLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+$form.Controls.Add($statusLabel)
+
+# Adicionar barra de progresso estilosa e fina
+$progressBar = New-Object System.Windows.Forms.ProgressBar
+$progressBar.Location = New-Object System.Drawing.Point(70, 440)
+$progressBar.Size = New-Object System.Drawing.Size(660, 10)  # Barra de progresso mais fina
+$progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Continuous
+$progressBar.ForeColor = [System.Drawing.Color]::RoyalBlue
+$form.Controls.Add($progressBar)
+
+# Adicionar botoes pretos e estilosos
+$executeButton = New-Object System.Windows.Forms.Button
+$executeButton.Text = "Executar"
+$executeButton.Location = New-Object System.Drawing.Point(250, 480)
+$executeButton.Size = New-Object System.Drawing.Size(150, 40)
+$executeButton.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$executeButton.BackColor = [System.Drawing.Color]::Black
+$executeButton.ForeColor = [System.Drawing.Color]::White
+$executeButton.FlatStyle = "Flat"
+$form.Controls.Add($executeButton)
+
+$closeButton = New-Object System.Windows.Forms.Button
+$closeButton.Text = "Fechar"
+$closeButton.Location = New-Object System.Drawing.Point(410, 480)
+$closeButton.Size = New-Object System.Drawing.Size(150, 40)
+$closeButton.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$closeButton.BackColor = [System.Drawing.Color]::Black
+$closeButton.ForeColor = [System.Drawing.Color]::White
+$closeButton.FlatStyle = "Flat"
+$form.Controls.Add($closeButton)
+
+# Funcao para executar a opcao selecionada
+$executeButton.Add_Click({
+    $selectedOptions = $checkBoxes | Where-Object { $_.Checked }
+    if (-not $selectedOptions) {
+        [System.Windows.Forms.MessageBox]::Show("Por favor, selecione uma opcao.")
+        return
+    }
+    $logPath = "$logDirectory\sync_log_$(Get-Date -Format 'yyyyMMdd_HHmm').csv"
+    $errorLogPath = "$logDirectory\error_log_$(Get-Date -Format 'yyyyMMdd_HHmm').csv"
+    foreach ($selectedOption in $selectedOptions) {
+        switch ($selectedOption.Text) {
+            "Sincronizar todos os dispositivos Windows (Fisicos)" {
+                Write-Host "Sincronizando todos os dispositivos Windows (Fisicos)..."
+                Sync-Devices -filter "operatingSystem eq 'Windows'" -logPath $logPath -errorLogPath $errorLogPath -deviceType "Windows"
+            }
+            "Sincronizar todos os dispositivos Android" {
+                Write-Host "Sincronizando todos os dispositivos Android..."
+                Sync-Devices -filter "operatingSystem eq 'Android'" -logPath $logPath -errorLogPath $errorLogPath -deviceType "Android"
+            }
+            "Sincronizar todos os dispositivos macOS" {
+                Write-Host "Sincronizando todos os dispositivos macOS..."
+                Sync-Devices -filter "operatingSystem eq 'macOS'" -logPath $logPath -errorLogPath $errorLogPath -deviceType "macOS"
+            }
+            "Sincronizar todos os dispositivos ChromeOS" {
+                Write-Host "Sincronizando todos os dispositivos ChromeOS..."
+                Sync-Devices -filter "operatingSystem eq 'ChromeOS'" -logPath $logPath -errorLogPath $errorLogPath -deviceType "ChromeOS"
+            }
+            "Reparar dispositivos com problemas de sincronismo" {
+                Write-Host "Reparando dispositivos com problemas de sincronismo..."
+                Resync-NoncompliantOrOutdatedDevices -logPath $logPath -errorLogPath $errorLogPath
+            }
+            "Forcar sincronizacao de todos os dispositivos" {
+                Write-Host "Forcando sincronizacao de todos os dispositivos..."
+                Force-Sync-AllDevices -logPath $logPath -errorLogPath $errorLogPath
+            }
+            "Abrir Jornada 365" {
+                Write-Host "Abrindo Jornada 365..."
+                Open-Url -url "https://jornada365.cloud"
+            }
+            "Abrir Intune Portal" {
+                Write-Host "Abrindo Intune Portal..."
+                Open-Url -url "https://intune.microsoft.com/"
+            }
         }
     }
-} while ($choice -ne 10)
+    Generate-HTMLReport -title "Relatorio de Sincronizacao" -logPath $logPath -errorLogPath $errorLogPath
+})
 
-Write-Host "Sincronizacao concluida. O arquivo de log foi salvo em $logPath"
+# Funcao para fechar o formulario
+$closeButton.Add_Click({
+    $form.Close()
+    Disconnect-FromGraph
+})
+
+# Mostrar o formulario
+[void]$form.ShowDialog()
+
+# Desconectar do Microsoft Graph ao fechar o formulario
 Disconnect-FromGraph
