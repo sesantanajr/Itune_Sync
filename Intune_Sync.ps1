@@ -1,7 +1,7 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# Instalar/Atualizar modulos necessarios
+# Instalar/Atualizar módulos necessários
 function Install-Update-Modules {
     $modules = @("Microsoft.Graph.Intune", "PSWriteHTML", "WindowsCompatibility")
     foreach ($module in $modules) {
@@ -84,26 +84,72 @@ function Generate-HTMLReport {
     $logContent = Import-Csv -Path $logPath
     $errorLogContent = Import-Csv -Path $errorLogPath
 
+    $deviceCounts = @{
+        Windows10 = 0
+        Windows11 = 0
+        Android = 0
+        macOS = 0
+        ChromeOS = 0
+        Autopilot = 0
+        Compliant = 0
+        NonCompliant = 0
+    }
+
+    foreach ($logEntry in $logContent) {
+        switch ($logEntry.Licenca) {
+            "Windows 10" { $deviceCounts.Windows10++ }
+            "Windows 11" { $deviceCounts.Windows11++ }
+            "Android" { $deviceCounts.Android++ }
+            "macOS" { $deviceCounts.macOS++ }
+            "ChromeOS" { $deviceCounts.ChromeOS++ }
+        }
+        if ($logEntry.Autopilot -eq "True") { $deviceCounts.Autopilot++ }
+        if ($logEntry.ComplianceState -eq "compliant") { $deviceCounts.Compliant++ }
+        else { $deviceCounts.NonCompliant++ }
+    }
+
     $htmlContent = @"
 <!DOCTYPE html>
-<html>
+<html lang='pt-br'>
 <head>
-    <meta charset="UTF-8">
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
     <title>$title</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
+            font-size: 14px;
         }
         h1, h2 {
             color: #333;
             text-align: center;
         }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
         .logo {
-            display: block;
-            margin: 0 auto;
             width: 150px;
             height: auto;
+        }
+        .search-bar {
+            text-align: right;
+            margin-bottom: 20px;
+        }
+        .search-bar input {
+            padding: 8px;
+            font-size: 14px;
+            width: 300px;
+        }
+        .blue-bg {
+            background-color: #007BFF;
+            color: white;
+            padding: 10px;
+        }
+        .table-container {
+            overflow-x: auto;
         }
         table {
             width: 100%;
@@ -121,6 +167,9 @@ function Generate-HTMLReport {
             background-color: #4CAF50;
             color: white;
         }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
         .error {
             color: red;
         }
@@ -129,41 +178,74 @@ function Generate-HTMLReport {
             margin: auto;
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js'></script>
+    <script>
+        function searchTable() {
+            var input, filter, table, tr, td, i, j, txtValue;
+            input = document.getElementById('searchInput');
+            filter = input.value.toUpperCase();
+            table = document.getElementById('logTable');
+            tr = table.getElementsByTagName('tr');
+            for (i = 1; i < tr.length; i++) {
+                tr[i].style.display = 'none';
+                td = tr[i].getElementsByTagName('td');
+                for (j = 0; j < td.length; j++) {
+                    if (td[j]) {
+                        txtValue = td[j].textContent || td[j].innerText;
+                        if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                            tr[i].style.display = '';
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
 <body>
-    <img src="https://jornada365.cloud/wp-content/uploads/2024/03/Logotipo-Jornada-365-Home.png" class="logo" alt="Jornada 365 Logo">
-    <h1>$title</h1>
-    <h2>Log de Sincronizacao</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Timestamp</th>
-                <th>Mensagem</th>
-                <th>Nome do Dispositivo</th>
-                <th>Email</th>
-                <th>Licenca</th>
-            </tr>
-        </thead>
-        <tbody>
+    <div class='header'>
+        <img src='https://jornada365.cloud/wp-content/uploads/2024/03/Logotipo-Jornada-365-Home.png' class='logo' alt='Jornada 365 Logo'>
+        <h1>Jornada Intune Sync Report</h1>
+        <div class='search-bar'>
+            <input type='text' id='searchInput' onkeyup='searchTable()' placeholder='Pesquisar...'>
+        </div>
+    </div>
+    <h2 class='blue-bg'>Device Sync</h2>
+    <div class='table-container'>
+        <table id='logTable'>
+            <thead>
+                <tr>
+                    <th>Hostname</th>
+                    <th>Email</th>
+                    <th>Licenca</th>
+                    <th>Status</th>
+                    <th>Data/Hora</th>
+                </tr>
+            </thead>
+            <tbody>
 "@
 
     foreach ($logEntry in $logContent) {
-        $htmlContent += "<tr><td>$($logEntry.Timestamp)</td><td>$($logEntry.Mensagem)</td><td>$($logEntry.NomeDoDispositivo)</td><td>$($logEntry.Email)</td><td>$($logEntry.Licenca)</td></tr>"
+        if ($logEntry.Mensagem -notlike "Sincronizacao concluida para windows, o arquivo de log foi salvo...") {
+            $status = if ($logEntry.Mensagem -eq "Sincronizacao bem-sucedida") { "Sucesso" } else { "Falha" }
+            $htmlContent += "<tr><td>$($logEntry.NomeDoDispositivo)</td><td>$($logEntry.Email)</td><td>$($logEntry.Licenca)</td><td>$status</td><td>$($logEntry.Timestamp)</td></tr>"
+        }
     }
 
     $htmlContent += @"
-        </tbody>
-    </table>
+            </tbody>
+        </table>
+    </div>
     <h2>Log de Erros</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Timestamp</th>
-                <th>Mensagem</th>
-            </tr>
-        </thead>
-        <tbody>
+    <div class='table-container'>
+        <table>
+            <thead>
+                <tr>
+                    <th>Data/Hora</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
 "@
 
     foreach ($errorEntry in $errorLogContent) {
@@ -171,10 +253,11 @@ function Generate-HTMLReport {
     }
 
     $htmlContent += @"
-        </tbody>
-    </table>
-    <div class="chart">
-        <canvas id="syncChart"></canvas>
+            </tbody>
+        </table>
+    </div>
+    <div class='chart'>
+        <canvas id='syncChart'></canvas>
     </div>
     <script>
         var ctx = document.getElementById('syncChart').getContext('2d');
@@ -197,6 +280,27 @@ function Generate-HTMLReport {
                         }
                     }]
                 }
+            }
+        });
+    </script>
+    <h2>Estatisticas</h2>
+    <div class='chart'>
+        <canvas id='osChart'></canvas>
+    </div>
+    <script>
+        var osCtx = document.getElementById('osChart').getContext('2d');
+        var osChart = new Chart(osCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Windows 10', 'Windows 11', 'Android', 'macOS', 'ChromeOS'],
+                datasets: [{
+                    label: 'Dispositivos por SO',
+                    data: [$($deviceCounts.Windows10), $($deviceCounts.Windows11), $($deviceCounts.Android), $($deviceCounts.macOS), $($deviceCounts.ChromeOS)],
+                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF']
+                }]
+            },
+            options: {
+                responsive: true
             }
         });
     </script>
@@ -236,13 +340,14 @@ function Sync-Devices {
             try {
                 Ensure-Dmwappushservice
                 Sync-MgDeviceManagementManagedDevice -ManagedDeviceId $device.Id
-                $logMessage = "[$deviceType] Sincronizando dispositivo: $($device.DeviceName) (ID: $($device.Id)), UPN: $($device.UserPrincipalName), Licenca: $($device.OperatingSystem)"
                 $logEntry = [PSCustomObject]@{
                     Timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
                     Mensagem = "Sincronizacao bem-sucedida"
                     NomeDoDispositivo = $device.DeviceName
                     Email = $device.UserPrincipalName
                     Licenca = $device.OperatingSystem
+                    ComplianceState = $device.ComplianceState
+                    Autopilot = $device.Autopilot
                 }
                 $logEntry | ConvertTo-Csv -NoTypeInformation | Out-File -Append -FilePath $logPath
             } catch {
@@ -255,7 +360,7 @@ function Sync-Devices {
             }
             Start-Sleep -Milliseconds 500
         }
-        $completionMessage = "Sincronizacao concluida para $deviceType. O arquivo de log foi salvo em $logPath"
+        $completionMessage = "Sincronizacao concluida para $deviceType."
         Log-Action -logPath $logPath -message $completionMessage
     } catch {
         $errorMessage = "Erro ao obter dispositivos: $_"
@@ -293,13 +398,14 @@ function Resync-NoncompliantOrOutdatedDevices {
             Ensure-Dmwappushservice
             try {
                 Invoke-MgGraphRequest -Method POST -Uri "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/$($device.Id)/syncDevice"
-                $logMessage = "[Reparar] Sincronizando dispositivo: $($device.DeviceName) (ID: $($device.Id)), UPN: $($device.UserPrincipalName), Licenca: $($device.OperatingSystem)"
                 $logEntry = [PSCustomObject]@{
                     Timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
                     Mensagem = "Reparo bem-sucedido"
                     NomeDoDispositivo = $device.DeviceName
                     Email = $device.UserPrincipalName
                     Licenca = $device.OperatingSystem
+                    ComplianceState = $device.ComplianceState
+                    Autopilot = $device.Autopilot
                 }
                 $logEntry | ConvertTo-Csv -NoTypeInformation | Out-File -Append -FilePath $logPath
             } catch {
@@ -312,7 +418,7 @@ function Resync-NoncompliantOrOutdatedDevices {
             }
             Start-Sleep -Milliseconds 500
         }
-        $completionMessage = "Reparo concluido. O arquivo de log foi salvo em $logPath"
+        $completionMessage = "Reparo concluido."
         Log-Action -logPath $logPath -message $completionMessage
     } catch {
         $errorMessage = "Erro ao obter dispositivos: $_"
@@ -346,13 +452,14 @@ function Force-Sync-AllDevices {
             try {
                 Ensure-Dmwappushservice
                 Sync-MgDeviceManagementManagedDevice -ManagedDeviceId $device.Id
-                $logMessage = "[Forcar] Sincronizando dispositivo: $($device.DeviceName) (ID: $($device.Id)), UPN: $($device.UserPrincipalName), Licenca: $($device.OperatingSystem)"
                 $logEntry = [PSCustomObject]@{
                     Timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
                     Mensagem = "Sincronizacao forcada bem-sucedida"
                     NomeDoDispositivo = $device.DeviceName
                     Email = $device.UserPrincipalName
                     Licenca = $device.OperatingSystem
+                    ComplianceState = $device.ComplianceState
+                    Autopilot = $device.Autopilot
                 }
                 $logEntry | ConvertTo-Csv -NoTypeInformation | Out-File -Append -FilePath $logPath
             } catch {
@@ -365,7 +472,7 @@ function Force-Sync-AllDevices {
             }
             Start-Sleep -Milliseconds 500
         }
-        $completionMessage = "Forcamento de sincronizacao concluido. O arquivo de log foi salvo em $logPath"
+        $completionMessage = "Forcamento de sincronizacao concluido."
         Log-Action -logPath $logPath -message $completionMessage
     } catch {
         $errorMessage = "Erro ao obter dispositivos: $_"
@@ -397,7 +504,7 @@ Connect-ToGraph
 # Criar a janela principal
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Jornada Intune Sync"
-$form.Size = New-Object System.Drawing.Size(800, 600)
+$form.Size = New-Object System.Drawing.Size(1000, 600)
 $form.StartPosition = "CenterScreen"
 $form.BackColor = [System.Drawing.Color]::White
 $form.FormBorderStyle = 'FixedDialog'
@@ -406,7 +513,7 @@ $form.MaximizeBox = $false
 # Adicionar a logo
 $pictureBox = New-Object System.Windows.Forms.PictureBox
 $pictureBox.ImageLocation = "https://jornada365.cloud/wp-content/uploads/2024/03/Logotipo-Jornada-365-Home.png"
-$pictureBox.Size = New-Object System.Drawing.Size(200, 50)
+$pictureBox.Size = New-Object System.Drawing.Size(150, 50)
 $pictureBox.Location = New-Object System.Drawing.Point(10, 10)
 $pictureBox.SizeMode = "Zoom"
 $form.Controls.Add($pictureBox)
@@ -415,8 +522,8 @@ $form.Controls.Add($pictureBox)
 $titleLabel = New-Object System.Windows.Forms.Label
 $titleLabel.Text = "Jornada Intune Sync"
 $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 24, [System.Drawing.FontStyle]::Bold)
-$titleLabel.Location = New-Object System.Drawing.Point(220, 10)
-$titleLabel.Size = New-Object System.Drawing.Size(560, 50)
+$titleLabel.Location = New-Object System.Drawing.Point(170, 10)
+$titleLabel.Size = New-Object System.Drawing.Size(660, 50)
 $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
 $form.Controls.Add($titleLabel)
 
@@ -424,7 +531,7 @@ $form.Controls.Add($titleLabel)
 $groupBox = New-Object System.Windows.Forms.GroupBox
 $groupBox.Text = "Device Sync"
 $groupBox.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
-$groupBox.Size = New-Object System.Drawing.Size(760, 300)
+$groupBox.Size = New-Object System.Drawing.Size(960, 300)
 $groupBox.Location = New-Object System.Drawing.Point(10, 80)
 $groupBox.BackColor = [System.Drawing.Color]::White
 $form.Controls.Add($groupBox)
@@ -458,7 +565,7 @@ foreach ($option in $options) {
 # Adicionar label para mostrar dispositivos sendo sincronizados
 $statusLabel = New-Object System.Windows.Forms.Label
 $statusLabel.Location = New-Object System.Drawing.Point(170, 400)
-$statusLabel.Size = New-Object System.Drawing.Size(460, 30)
+$statusLabel.Size = New-Object System.Drawing.Size(660, 30)
 $statusLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10)
 $statusLabel.BackColor = [System.Drawing.Color]::White
 $statusLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -467,7 +574,7 @@ $form.Controls.Add($statusLabel)
 # Adicionar barra de progresso estilosa e fina
 $progressBar = New-Object System.Windows.Forms.ProgressBar
 $progressBar.Location = New-Object System.Drawing.Point(70, 440)
-$progressBar.Size = New-Object System.Drawing.Size(660, 10)  # Barra de progresso mais fina
+$progressBar.Size = New-Object System.Drawing.Size(860, 10)  # Barra de progresso mais fina
 $progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Continuous
 $progressBar.ForeColor = [System.Drawing.Color]::RoyalBlue
 $form.Controls.Add($progressBar)
@@ -475,7 +582,7 @@ $form.Controls.Add($progressBar)
 # Adicionar botoes pretos e estilosos
 $executeButton = New-Object System.Windows.Forms.Button
 $executeButton.Text = "Executar"
-$executeButton.Location = New-Object System.Drawing.Point(250, 480)
+$executeButton.Location = New-Object System.Drawing.Point(320, 480)
 $executeButton.Size = New-Object System.Drawing.Size(150, 40)
 $executeButton.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
 $executeButton.BackColor = [System.Drawing.Color]::Black
@@ -485,7 +592,7 @@ $form.Controls.Add($executeButton)
 
 $closeButton = New-Object System.Windows.Forms.Button
 $closeButton.Text = "Fechar"
-$closeButton.Location = New-Object System.Drawing.Point(410, 480)
+$closeButton.Location = New-Object System.Drawing.Point(490, 480)
 $closeButton.Size = New-Object System.Drawing.Size(150, 40)
 $closeButton.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
 $closeButton.BackColor = [System.Drawing.Color]::Black
@@ -538,7 +645,7 @@ $executeButton.Add_Click({
             }
         }
     }
-    Generate-HTMLReport -title "Relatorio de Sincronizacao" -logPath $logPath -errorLogPath $errorLogPath
+    Generate-HTMLReport -title "Jornada Intune Sync Report" -logPath $logPath -errorLogPath $errorLogPath
 })
 
 # Funcao para fechar o formulario
