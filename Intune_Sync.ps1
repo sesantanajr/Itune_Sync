@@ -143,11 +143,6 @@ function Generate-HTMLReport {
             font-size: 14px;
             width: 300px;
         }
-        .blue-bg {
-            background-color: #007BFF;
-            color: white;
-            padding: 10px;
-        }
         .table-container {
             overflow-x: auto;
         }
@@ -176,6 +171,13 @@ function Generate-HTMLReport {
         .chart {
             width: 80%;
             margin: auto;
+        }
+        .additional-info {
+            width: 50%;
+            float: left;
+        }
+        .additional-info p {
+            margin: 5px 0;
         }
     </style>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js'></script>
@@ -210,7 +212,6 @@ function Generate-HTMLReport {
             <input type='text' id='searchInput' onkeyup='searchTable()' placeholder='Pesquisar...'>
         </div>
     </div>
-    <h2 class='blue-bg'>Device Sync</h2>
     <div class='table-container'>
         <table id='logTable'>
             <thead>
@@ -225,31 +226,15 @@ function Generate-HTMLReport {
             <tbody>
 "@
 
+    $logEntries = @{}
     foreach ($logEntry in $logContent) {
         if ($logEntry.Mensagem -notlike "Sincronizacao concluida para windows, o arquivo de log foi salvo...") {
-            $status = if ($logEntry.Mensagem -eq "Sincronizacao bem-sucedida") { "Sucesso" } else { "Falha" }
-            $htmlContent += "<tr><td>$($logEntry.NomeDoDispositivo)</td><td>$($logEntry.Email)</td><td>$($logEntry.Licenca)</td><td>$status</td><td>$($logEntry.Timestamp)</td></tr>"
+            if (-not $logEntries[$logEntry.NomeDoDispositivo]) {
+                $logEntries[$logEntry.NomeDoDispositivo] = $true
+                $status = if ($logEntry.Mensagem -eq "Sincronizacao bem-sucedida") { "Sucesso" } else { "Falha" }
+                $htmlContent += "<tr><td>$($logEntry.NomeDoDispositivo)</td><td>$($logEntry.Email)</td><td>$($logEntry.Licenca)</td><td>$status</td><td>$($logEntry.Timestamp)</td></tr>"
+            }
         }
-    }
-
-    $htmlContent += @"
-            </tbody>
-        </table>
-    </div>
-    <h2>Log de Erros</h2>
-    <div class='table-container'>
-        <table>
-            <thead>
-                <tr>
-                    <th>Data/Hora</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-"@
-
-    foreach ($errorEntry in $errorLogContent) {
-        $htmlContent += "<tr><td>$($errorEntry.Timestamp)</td><td class='error'>$($errorEntry.Mensagem)</td></tr>"
     }
 
     $htmlContent += @"
@@ -283,7 +268,17 @@ function Generate-HTMLReport {
             }
         });
     </script>
-    <h2>Estatisticas</h2>
+    <div class='additional-info'>
+        <h2>Dispositivos por Plataforma</h2>
+        <p>Total de dispositivos Windows 10: $($deviceCounts.Windows10)</p>
+        <p>Total de dispositivos Windows 11: $($deviceCounts.Windows11)</p>
+        <p>Total de dispositivos Android: $($deviceCounts.Android)</p>
+        <p>Total de dispositivos macOS: $($deviceCounts.macOS)</p>
+        <p>Total de dispositivos ChromeOS: $($deviceCounts.ChromeOS)</p>
+        <p>Total de dispositivos no Autopilot: $($deviceCounts.Autopilot)</p>
+        <p>Total de dispositivos em conformidade: $($deviceCounts.Compliant)</p>
+        <p>Total de dispositivos fora de conformidade: $($deviceCounts.NonCompliant)</p>
+    </div>
     <div class='chart'>
         <canvas id='osChart'></canvas>
     </div>
