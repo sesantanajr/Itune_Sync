@@ -1,101 +1,63 @@
-# Jornada 365 - Intune Sync
+# Jornada 365 | Intune Sync
 
-## Visão Geral
-
-O script "Jornada 365 - Intune Sync" foi desenvolvido para facilitar a sincronização e gerenciamento de dispositivos no Microsoft Intune. Este script automatiza várias tarefas de administração de dispositivos, como sincronização, reparo de dispositivos com problemas de sincronismo e forçar a sincronização de todos os dispositivos. Ele é especialmente útil para administradores de TI que gerenciam um grande número de dispositivos e precisam de uma maneira eficiente e automatizada para garantir que todos os dispositivos estejam atualizados e em conformidade.
-
-![Menu Intune Sync](https://github.com/sesantanajr/Itune_Sync/blob/main/intune_sync_menu.png)
+Bem-vindo ao **Jornada 365 | Intune Sync**! Este script PowerShell foi desenvolvido para facilitar a sincronização de dispositivos gerenciados pelo Microsoft Intune, garantindo que todas as plataformas estejam atualizadas e em conformidade. Além disso, o script oferece uma interface gráfica intuitiva para simplificar a interação com os usuários.
 
 ## Funcionalidades
 
-- **Instalação e Atualização do Módulo Microsoft Graph Intune**: Verifica se o módulo Microsoft Graph Intune está instalado e atualizado. Se não estiver, o módulo é instalado ou atualizado automaticamente.
-- **Conexão e Desconexão do Microsoft Graph**: Conecta e desconecta do Microsoft Graph com as permissões necessárias para gerenciar dispositivos no Intune.
-- **Sincronização de Dispositivos**: Sincroniza dispositivos baseados em diferentes sistemas operacionais, como Windows, Android, macOS e ChromeOS.
-- **Reparo de Dispositivos com Problemas de Sincronismo**: Repara e sincroniza dispositivos que não estão em conformidade ou que não foram sincronizados nas últimas 12 horas.
-- **Forçar Sincronização de Todos os Dispositivos**: Força a sincronização de todos os dispositivos, independentemente do seu estado atual.
-- **Abertura de URLs**: Abre URLs importantes, como o site Jornada 365 e o portal do Intune, no navegador padrão.
-- **Geração de Logs**: Gera logs detalhados de todas as operações realizadas, armazenados em um diretório específico.
-
-## Menu de Opções
-
-### 1. Sincronizar todos os dispositivos Windows (Físicos)
-
-Sincroniza todos os dispositivos com sistema operacional Windows que são físicos.
-- **Comando Utilizado**: `Sync-Devices -filter "operatingSystem eq 'Windows'" -logPath $logPath -errorLogPath $errorLogPath`
-
-### 2. Sincronizar todos os dispositivos Android
-
-Sincroniza todos os dispositivos com sistema operacional Android.
-- **Comando Utilizado**: `Sync-Devices -filter "operatingSystem eq 'Android'" -logPath $logPath -errorLogPath $errorLogPath`
-
-### 3. Sincronizar todos os dispositivos macOS
-
-Sincroniza todos os dispositivos com sistema operacional macOS.
-- **Comando Utilizado**: `Sync-Devices -filter "operatingSystem eq 'macOS'" -logPath $logPath -errorLogPath $errorLogPath`
-
-### 4. Sincronizar todos os dispositivos ChromeOS
-
-Sincroniza todos os dispositivos com sistema operacional ChromeOS.
-- **Comando Utilizado**: `Sync-Devices -filter "operatingSystem eq 'ChromeOS'" -logPath $logPath -errorLogPath $errorLogPath`
-
-### 5. Reparar dispositivos com problemas de sincronismo
-
-Repara e sincroniza dispositivos que não estão em conformidade ou que não sincronizaram nas últimas 12 horas.
-- **Comando Utilizado**: `Resync-NoncompliantOrOutdatedDevices -logPath $logPath -errorLogPath $errorLogPath`
-
-### 6. Forçar sincronização de todos os dispositivos
-
-Força a sincronização de todos os dispositivos, independentemente do estado.
-- **Comando Utilizado**: `Force-Sync-AllDevices -logPath $logPath -errorLogPath $errorLogPath`
-
-### 7. Abrir Jornada 365
-
-Abre o site Jornada 365 no navegador padrão.
-- **Comando Utilizado**: `Open-Url -url "https://jornada365.cloud"`
-
-### 8. Abrir Intune Portal
-
-Abre o portal do Intune no navegador padrão.
-- **Comando Utilizado**: `Open-Url -url "https://intune.microsoft.com/"`
-
-### 9. Ajuda
-
-Exibe o menu de ajuda detalhada.
-- **Comando Utilizado**: `Show-Help`
-
-### 10. Sair e desconectar
-
-Sai do script e desconecta do Microsoft Graph.
-- **Comando Utilizado**: `Disconnect-FromGraph`
-
-## Logs
-
-Todos os logs de operações realizadas são salvos no diretório `C:\J365_Intune` com data e hora no nome do arquivo, permitindo fácil rastreamento e auditoria das ações realizadas pelo script.
+- **Instalação/Atualização de Módulos Necessários**: Verifica e instala ou atualiza os módulos do PowerShell necessários.
+- **Conexão ao Microsoft Graph**: Estabelece uma conexão segura com o Microsoft Graph para executar operações de gerenciamento de dispositivos.
+- **Sincronização de Dispositivos**: Sincroniza dispositivos Windows, Android, macOS e ChromeOS, garantindo que todos estejam em conformidade.
+- **Logs Detalhados**: Gera logs detalhados de todas as ações executadas, permitindo rastrear e solucionar problemas facilmente.
+- **Interface Gráfica Intuitiva**: Apresenta uma interface gráfica moderna e fácil de usar, facilitando a seleção e execução de tarefas.
+- **Acesso Rápido**: Opções para abrir rapidamente o portal Jornada 365 e o portal Intune diretamente da interface.
 
 ## Como Usar
 
-1. **Clonar o Repositório**:
-   ```sh
-   git clone https://github.com/sesantanajr/Itune_Sync.git
-   cd Itune_Sync
-   ```
-
-2. **Executar o Script**:
-   Abra o PowerShell como Administrador e execute o script `Intune_Sync.ps1`:
-   ```sh
-   powershell -ExecutionPolicy Bypass -File .\Intune_Sync.ps1 .\Intune_Sync.ps1
-   ```
-
-3. **Seguir as Instruções na Tela**:
-   O script exibirá um menu de opções. Escolha a opção desejada digitando o número correspondente e pressionando Enter.
-
-## Requisitos
+### Pré-requisitos
 
 - **PowerShell 5.1 ou superior**
-- **Módulo Microsoft.Graph.Intune**
-- **Permissões apropriadas no Microsoft Intune**
+- **Conexão com a Internet** para instalar módulos e conectar ao Microsoft Graph
+- **Permissões Adequadas** no Microsoft Intune para leitura e escrita de dispositivos gerenciados
+
+### Passo a Passo
+
+1. **Clone o Repositório**:
+    ```sh
+    git clone https://github.com/sesantanajr/Itune_Sync.git
+    cd Itune_Sync
+    ```
+
+2. **Execute o Script**:
+    - Abra o PowerShell como Administrador
+    - Navegue até o diretório do script
+    - Execute o script:
+    ```sh
+    .\Itune_Sync.ps1
+    ```
+
+3. **Utilize a Interface Gráfica**:
+    - Selecione as opções desejadas para sincronização de dispositivos.
+    - Clique em "Executar" para iniciar a sincronização.
+    - Acompanhe o progresso através da barra de progresso e das mensagens de status.
+
+### Logs e Resultados
+
+Os logs são gerados automaticamente no diretório `C:\J365_Intune`, contendo detalhes das ações executadas e quaisquer erros encontrados durante a sincronização. Um formulário adicional exibe os resultados da sincronização, que podem ser salvos em formato CSV para futuras referências.
+
+### Interface Gráfica
+
+- **Checkboxes**: Selecione as plataformas de dispositivos que deseja sincronizar.
+- **Barra de Progresso**: Acompanhe o progresso da sincronização em tempo real.
+- **Botões**: Utilize os botões "Executar" para iniciar a sincronização e "Fechar" para sair da aplicação.
+
+## Vantagens de Usar Este Script
+
+1. **Automatização**: Automatiza a sincronização de dispositivos, reduzindo a necessidade de intervenção manual.
+2. **Eficiência**: Garante que todos os dispositivos estejam atualizados e em conformidade de forma rápida e eficiente.
+3. **Facilidade de Uso**: A interface gráfica intuitiva torna o processo de sincronização simples, mesmo para usuários com pouca experiência em PowerShell.
+4. **Logs Detalhados**: Fornece logs completos e detalhados, facilitando a identificação e resolução de problemas.
+5. **Acesso Rápido**: Permite acesso rápido aos portais Jornada 365 e Intune diretamente da interface, melhorando a produtividade.
 
 ## Contribuição
 
-Contribuições são bem-vindas!
-Faça parte desta Jornada você também - Jornada 365 - https://jornada365.cloud
+Contribuições são bem-vindas! Faça parte dessa jornada você também.
