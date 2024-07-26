@@ -11,6 +11,8 @@ Bem-vindo ao **Jornada 365 | Intune Sync**! Este script PowerShell foi desenvolv
 - **Interface Gráfica Intuitiva**: Apresenta uma interface gráfica moderna e fácil de usar, facilitando a seleção e execução de tarefas.
 - **Acesso Rápido**: Opções para abrir rapidamente o portal Jornada 365 e o portal Intune diretamente da interface.
 
+  ![MENU SCRIPT](https://github.com/sesantanajr/Itune_Sync/blob/main/Jornada%20365%20Intune%20Sync.png)
+
 ## Como Usar
 
 ### Pré-requisitos
