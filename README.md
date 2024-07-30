@@ -34,7 +34,7 @@ Bem-vindo ao **Jornada 365 | Intune Sync**! Este script PowerShell foi desenvolv
     - Navegue até o diretório do script
     - Execute o script:
     ```sh
-    .\Itune_Sync.ps1
+    powershell -ExecutionPolicy Bypass -File .\Itune_Sync.ps1
     ```
 
 3. **Utilize a Interface Gráfica**:
